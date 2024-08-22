@@ -1,0 +1,15 @@
+[Unit]
+Description=TLDR daemon (receives and stores profiling traces)
+
+[Socket]
+ListenStream=/tmp/tldr.socket
+Accept=no
+
+[Service]
+ExecStart=tldr
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+

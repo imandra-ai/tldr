@@ -24,9 +24,11 @@ When programs have sent traces, they can be listed using:
 $ tldr list
 ```
 
+Traces are stored as `.jsonl` files (easy to append to, easy to iterate on). Each line is a valid TEF json event.
+
 and you can get a `trace.json` file with:
 ```
-$ tldr get-tef <some jsonl path from list> -o trace.json
+$ tldr get-tef $some_jsonl_path -o trace.json
 ```
 
 Then this trace.json file can be opened with https://ui.perfetto.dev/ .
