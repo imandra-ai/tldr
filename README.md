@@ -32,3 +32,16 @@ $ tldr get-tef $some_jsonl_path -o trace.json
 ```
 
 Then this trace.json file can be opened with https://ui.perfetto.dev/ .
+
+## Running the daemon with systemd
+
+A basic unit file is in `data/tldr.service`. It assumes tldr is in the standard path, or was installed
+via `cargo install` as above.
+
+Run:
+```
+$ cp data/tldr.service ~/.config/systemd/user/
+$ systemctl daemon-reload --user
+$ systemctl enable --user tldr
+$ systemctl start --user tldr
+```
