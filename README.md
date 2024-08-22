@@ -45,3 +45,25 @@ $ systemctl daemon-reload --user
 $ systemctl enable --user tldr
 $ systemctl start --user tldr
 ```
+
+## Protocol
+
+Clients communicate with the `tldr` daemon via a unix socket (by default in `/tmp/tldr.socket`).
+Each client process should open one connection to `tldr` and send these messages:
+
+| message | comment |
+|---|---|
+| OPEN <trace-id> |  mandatory first message |
+| {"ph": "X", …} | a normal TEF event |
+| EMIT_TEF <path/to/trace.json> | optional last message |
+
+
+All processes in a single program run must open the same `trace_id` (a utf-8 safe identifier
+used to name the `.jsonl`  file). Traces from processes using the same `trace_id` will
+be written to a single `.jsonl` file and will belong in the same trace.
+
+Events can be sent normally after the first `OPEN`, one json event per line.
+
+At the end, one of the processes can send `EMIT_TEF /foo/trace.json` to have the server
+write the whole trace, in TEF format (not `.jsonl`! rather, a single json object)
+to the file at `/foo/trace.json`.
