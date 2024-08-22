@@ -49,13 +49,13 @@ $ systemctl start --user tldr
 ## Protocol
 
 Clients communicate with the `tldr` daemon via a unix socket (by default in `/tmp/tldr.socket`).
-Each client process should open one connection to `tldr` and send these messages:
+Each client process should open one connection to `tldr` and send these messages, one per line:
 
 | message | comment |
 |---|---|
-| OPEN <trace-id> |  mandatory first message |
-| {"ph": "X", …} | a normal TEF event |
-| EMIT_TEF <path/to/trace.json> | optional last message |
+| `OPEN <trace-id>` |  mandatory first message |
+| `{"ph": "X", …}` | a normal TEF event |
+| `EMIT_TEF <path/to/trace.json>` | optional last message |
 
 
 All processes in a single program run must open the same `trace_id` (a utf-8 safe identifier
