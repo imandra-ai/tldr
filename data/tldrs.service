@@ -1,9 +1,9 @@
 [Unit]
-Description=TLDR daemon (receives and stores profiling traces)
+Description=TLDRS daemon (receives and stores profiling traces)
 
 [Service]
 ExecSearchPath=%h/.cargo/bin
-ExecStart=tldr serve
+ExecStart=tldrs serve
 Restart=always
 RestartSec=10
 

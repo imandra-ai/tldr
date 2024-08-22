@@ -205,7 +205,7 @@ pub fn run(cli: cli::Serve) -> Result<()> {
         Some(d) => PathBuf::from_str(&d)?,
         None => {
             let mut path = std::env::temp_dir();
-            path.push("tldr.socket");
+            path.push("tldrs.socket");
             path
         }
     };

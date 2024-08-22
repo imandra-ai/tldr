@@ -2,7 +2,7 @@ use std::io::{BufRead, Write};
 
 use anyhow::Result;
 
-pub const XDG_PREFIX: &'static str = "tldr";
+pub const XDG_PREFIX: &'static str = "tldrs";
 
 pub fn emit_tef(reader: &mut impl BufRead, writer: &mut impl Write) -> Result<()> {
     let mut first = true;
