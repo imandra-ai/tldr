@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
+use env_logger::Env;
 
 mod cli;
 mod get_tef;
@@ -9,7 +10,7 @@ mod serve;
 mod utils;
 
 fn main() -> Result<()> {
-    env_logger::init();
+    env_logger::init_from_env(Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"));
 
     let cmd = cli::Command::try_parse().context("Parsing command line")?;
     match cmd {
