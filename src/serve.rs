@@ -41,6 +41,8 @@ struct TraceFile {
 struct State {
     active: AtomicBool,
     die_when_idle: AtomicBool,
+    /// User might have provided a single file into which all traces go
+    into_file: Option<String>,
     socket_path: PathBuf,
     dir: PathBuf,
     files: Mutex<HashMap<TraceID, Arc<TraceFile>>>,
@@ -74,7 +76,11 @@ impl State {
         let trf = match files.entry(trace_id.clone()) {
             hash_map::Entry::Occupied(trf) => trf.get().clone(),
             hash_map::Entry::Vacant(e) => {
-                let path = self.trace_file_path(&trace_id);
+                let path = match self.into_file.as_ref() {
+                    None => self.trace_file_path(&trace_id),
+                    Some(p) => PathBuf::from_str(&p)?,
+                };
+
                 let file = fs::OpenOptions::new()
                     .append(true)
                     .create(true)
@@ -141,6 +147,12 @@ impl TraceFile {
 
 fn handle_client(st: Arc<State>, mut client: impl BufRead) -> Result<()> {
     let mut trace_file: Option<Arc<TraceFile>> = None;
+    if st.into_file.is_some() {
+        // default file, we assume the "default" trace
+        let trace_id = TraceID("default".to_string());
+        trace_file = Some(st.get_trace_file(trace_id)?);
+    }
+
     let mut n_errors = 0;
 
     let mut line = String::new();
@@ -324,6 +336,7 @@ pub fn run(cli: cli::Serve) -> Result<()> {
     let st = Arc::new(State {
         active: AtomicBool::new(true),
         die_when_idle: AtomicBool::new(false),
+        into_file: cli.single_file.clone(),
         socket_path: socket_path.clone(),
         dir,
         files: Mutex::new(HashMap::new()),

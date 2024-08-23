@@ -13,6 +13,11 @@ pub struct Serve {
     /// Storage directory
     #[arg(short = 'd', long = "dir")]
     pub dir: Option<String>,
+    /// Write all message to this single (.jsonl) file.
+    /// This means all clients implictly participate in a single trace
+    /// and should not send `OPEN`.
+    #[arg(long = "into-file")]
+    pub single_file: Option<String>,
     /// Daemonize on startup
     #[arg(long = "daemonize")]
     pub daemonize: bool,
