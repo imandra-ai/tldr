@@ -29,20 +29,19 @@ impl<'a> From<&'a str> for TraceID {
     }
 }
 
-#[derive(Clone)]
 struct TraceFile {
-    trace_id: Arc<TraceID>,
+    trace_id: TraceID,
     /// The pathbuf of the trace file
-    path: Arc<PathBuf>,
+    path: PathBuf,
     /// Opened file descriptor to the file
-    out: Arc<Mutex<BufWriter<fs::File>>>,
+    out: Mutex<BufWriter<fs::File>>,
 }
 
 struct State {
     active: AtomicBool,
     socket_path: PathBuf,
     dir: PathBuf,
-    files: Mutex<HashMap<TraceID, TraceFile>>,
+    files: Mutex<HashMap<TraceID, Arc<TraceFile>>>,
 }
 
 impl Drop for State {
@@ -64,7 +63,7 @@ impl State {
         path
     }
 
-    fn get_trace_file(&self, trace_id: impl Into<TraceID>) -> Result<TraceFile> {
+    fn get_trace_file(&self, trace_id: impl Into<TraceID>) -> Result<Arc<TraceFile>> {
         let trace_id = trace_id.into();
 
         let mut files = self.files.lock().unwrap();
@@ -78,11 +77,11 @@ impl State {
                     .write(true)
                     .open(&path)?;
                 let out = BufWriter::new(file);
-                let trf = TraceFile {
-                    trace_id: Arc::new(trace_id),
-                    path: Arc::new(path),
-                    out: Arc::new(Mutex::new(out)),
-                };
+                let trf = Arc::new(TraceFile {
+                    trace_id,
+                    path,
+                    out: Mutex::new(out),
+                });
 
                 e.insert(trf.clone());
                 trf
@@ -100,7 +99,7 @@ impl TraceFile {
         );
 
         // open trace file, read at most `len` bytes from it
-        let file_in = fs::File::open(Arc::as_ref(&self.path))?.take(len);
+        let file_in = fs::File::open(&self.path)?.take(len);
         let mut reader = BufReader::new(file_in);
 
         // open output TEF file
@@ -112,7 +111,7 @@ impl TraceFile {
 }
 
 fn handle_client(st: Arc<State>, mut client: impl BufRead) -> Result<()> {
-    let mut trace_file: Option<TraceFile> = None;
+    let mut trace_file: Option<Arc<TraceFile>> = None;
     let mut n_errors = 0;
 
     let mut line = String::new();
@@ -192,21 +191,45 @@ fn handle_client(st: Arc<State>, mut client: impl BufRead) -> Result<()> {
     Ok(())
 }
 
-/// Regularly flush files.
-fn heartbeat_loop(st: Arc<State>) {
+/// Regularly flush files and close unused files.
+fn cleaner_thread(st: Arc<State>) {
     while st.active.load(atomic::Ordering::SeqCst) {
         // collect copies of all files
-        let files: Vec<_> = {
-            st.files
-                .lock()
-                .unwrap()
-                .iter()
-                .map(|kv| kv.1)
-                .cloned()
-                .collect()
-        };
+        let mut files = vec![];
+
+        {
+            let mut dead_files = vec![];
+
+            let mut tbl = st.files.lock().unwrap();
+            for (_, file) in tbl.iter() {
+                if Arc::strong_count(&file) == 1 {
+                    // only copy of `f`, no client is currently using it
+                    dead_files.push(file.clone());
+                } else {
+                    files.push(file.clone())
+                }
+            }
+
+            // remove and flush all these files now, before a client has  the
+            // opportunity to start writing to them
+            for file in dead_files {
+                tbl.remove(&file.trace_id);
+                log::info!("Closing file for trace_id={:?}", file.trace_id);
+
+                if let Err(err) = {
+                    let mut out = file.out.lock().unwrap();
+                    out.flush()
+                } {
+                    log::error!("Error while flushing {:?}: {:?}", file.path, err)
+                }
+            }
+        }
 
         for f in files {
+            if Arc::strong_count(&f) <= 2 {
+                st.files.lock().unwrap().remove(&f.trace_id);
+            }
+
             if let Err(err) = {
                 // flush f
                 let mut out = f.out.lock().unwrap();
@@ -260,7 +283,7 @@ pub fn run(cli: cli::Serve) -> Result<()> {
     thread::spawn({
         let st2 = st.clone();
         move || {
-            heartbeat_loop(st2);
+            cleaner_thread(st2);
         }
     });
 
