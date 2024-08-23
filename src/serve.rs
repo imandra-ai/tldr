@@ -8,8 +8,12 @@ use std::{
     os::unix::net::UnixListener,
     path::PathBuf,
     str::FromStr,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{self, AtomicBool},
+        Arc, Mutex,
+    },
     thread,
+    time::Duration,
 };
 
 use crate::{cli, msg, utils};
@@ -27,14 +31,15 @@ impl<'a> From<&'a str> for TraceID {
 
 #[derive(Clone)]
 struct TraceFile {
-    trace_id: TraceID,
+    trace_id: Arc<TraceID>,
     /// The pathbuf of the trace file
-    path: PathBuf,
+    path: Arc<PathBuf>,
     /// Opened file descriptor to the file
     out: Arc<Mutex<BufWriter<fs::File>>>,
 }
 
 struct State {
+    active: AtomicBool,
     socket_path: PathBuf,
     dir: PathBuf,
     files: Mutex<HashMap<TraceID, TraceFile>>,
@@ -74,8 +79,8 @@ impl State {
                     .open(&path)?;
                 let out = BufWriter::new(file);
                 let trf = TraceFile {
-                    trace_id,
-                    path,
+                    trace_id: Arc::new(trace_id),
+                    path: Arc::new(path),
                     out: Arc::new(Mutex::new(out)),
                 };
 
@@ -95,12 +100,12 @@ impl TraceFile {
         );
 
         // open trace file, read at most `len` bytes from it
-        let file_in = fs::File::open(&self.path)?.take(len);
+        let file_in = fs::File::open(Arc::as_ref(&self.path))?.take(len);
         let mut reader = BufReader::new(file_in);
 
         // open output TEF file
         let file_out = fs::File::create(&path)?;
-        let mut writer = BufWriter::new(file_out);
+        let mut writer = BufWriter::with_capacity(16 * 1024, file_out);
 
         utils::emit_tef(&mut reader, &mut writer)
     }
@@ -187,6 +192,34 @@ fn handle_client(st: Arc<State>, mut client: impl BufRead) -> Result<()> {
     Ok(())
 }
 
+/// Regularly flush files.
+fn heartbeat_loop(st: Arc<State>) {
+    while st.active.load(atomic::Ordering::SeqCst) {
+        // collect copies of all files
+        let files: Vec<_> = {
+            st.files
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|kv| kv.1)
+                .cloned()
+                .collect()
+        };
+
+        for f in files {
+            if let Err(err) = {
+                // flush f
+                let mut out = f.out.lock().unwrap();
+                out.flush()
+            } {
+                log::error!("Error while flushing file {:?}: {:?}", f.path, err)
+            }
+        }
+
+        thread::sleep(Duration::from_secs(2));
+    }
+}
+
 pub fn run(cli: cli::Serve) -> Result<()> {
     let dir: PathBuf = match cli.dir {
         None => {
@@ -218,9 +251,17 @@ pub fn run(cli: cli::Serve) -> Result<()> {
 
     // shared state
     let st = Arc::new(State {
+        active: AtomicBool::new(true),
         socket_path: socket_path.clone(),
         dir,
         files: Mutex::new(HashMap::new()),
+    });
+
+    thread::spawn({
+        let st2 = st.clone();
+        move || {
+            heartbeat_loop(st2);
+        }
     });
 
     let listener = UnixListener::bind(&socket_path)?;
@@ -242,5 +283,6 @@ pub fn run(cli: cli::Serve) -> Result<()> {
         });
     }
 
+    st.active.store(false, atomic::Ordering::SeqCst);
     Ok(())
 }
