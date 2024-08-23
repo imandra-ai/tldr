@@ -20,6 +20,8 @@ pub enum Msg<'a> {
     Add {
         json: &'a str,
     },
+    /// Client asks whole daemon to die
+    Die,
     ParseError {
         msg: &'static str,
     },
@@ -36,6 +38,8 @@ pub fn decode_line<'a>(line: &'a str) -> Msg<'a> {
         Open {
             trace_id: rest.trim(),
         }
+    } else if line == "DIE" {
+        Die
     } else if let Some(rest) = line.strip_prefix("SYMLINK ") {
         Symlink { file: rest.trim() }
     } else if let Some(rest) = line.strip_prefix("EMIT_TEF ") {

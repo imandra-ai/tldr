@@ -45,11 +45,27 @@ struct State {
     files: Mutex<HashMap<TraceID, Arc<TraceFile>>>,
 }
 
+impl State {
+    fn close_all_force(&self) {
+        let mut files = self.files.lock().unwrap();
+        for (_, f) in files.drain() {
+            if let Err(err) = {
+                let mut out = f.out.lock().unwrap();
+                out.flush()
+            } {
+                log::error!("Error while flushing {:?}: {:?}", f.path, err)
+            }
+        }
+    }
+}
+
 impl Drop for State {
     fn drop(&mut self) {
         // remove socket file
         log::debug!("removing socket file {:?}", self.socket_path);
         let _ = fs::remove_file(&self.socket_path);
+
+        self.close_all_force();
     }
 }
 
@@ -117,6 +133,10 @@ fn handle_client(st: Arc<State>, mut client: impl BufRead) -> Result<()> {
 
     let mut line = String::new();
     loop {
+        if !st.active.load(atomic::Ordering::SeqCst) {
+            break;
+        }
+
         line.clear();
         let msg = match client.read_line(&mut line) {
             Err(e) => {
@@ -130,6 +150,22 @@ fn handle_client(st: Arc<State>, mut client: impl BufRead) -> Result<()> {
         log::debug!("got msg {:?}", &msg);
         match msg {
             msg::Msg::Empty => (),
+            msg::Msg::Die => {
+                // exit gracefully
+                log::info!("client asked us to quit");
+                st.active.store(false, atomic::Ordering::SeqCst);
+
+                st.close_all_force();
+
+                // if we don't exit in 10s, die less cleanly
+                thread::spawn(|| {
+                    thread::sleep(Duration::from_secs(10));
+                    log::warn!("timeout, dying the hard way");
+                    std::process::exit(1);
+                });
+
+                break;
+            }
             msg::Msg::Open { trace_id } => {
                 log::debug!("Opening trace file for trace_id={trace_id:?}");
                 trace_file = Some(st.get_trace_file(trace_id)?);
