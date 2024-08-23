@@ -1,6 +1,7 @@
 #[derive(Debug, clap::Parser)]
 pub struct List {
     /// Storage directory
+    #[arg(short = 'd', long = "dir")]
     pub dir: Option<String>,
 }
 
@@ -9,6 +10,7 @@ pub struct Serve {
     /// Path to the unix socket to serve
     pub unix_socket: Option<String>,
     /// Storage directory
+    #[arg(short = 'd', long = "dir")]
     pub dir: Option<String>,
 }
 
