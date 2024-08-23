@@ -57,6 +57,7 @@ Each client process should open one connection to `tldrs` and send these message
 | `{"ph": "X", …}` | a normal TEF event |
 | `EMIT_TEF <path/to/trace.json>` | optional last message |
 | `DIE` | ask tldrs to exit asap |
+| `DIE_WHEN_IDLE` | ask tldrs to exit when it has no clients |
 
 
 All processes in a single program run must open the same `trace_id` (a utf-8 safe identifier

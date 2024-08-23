@@ -22,6 +22,8 @@ pub enum Msg<'a> {
     },
     /// Client asks whole daemon to die
     Die,
+    /// Client asks the whole daemon to die when it has 0 clients
+    DieWhenIdle,
     ParseError {
         msg: &'static str,
     },
@@ -40,6 +42,8 @@ pub fn decode_line<'a>(line: &'a str) -> Msg<'a> {
         }
     } else if line == "DIE" {
         Die
+    } else if line == "DIE_WHEN_IDLE" {
+        DieWhenIdle
     } else if let Some(rest) = line.strip_prefix("SYMLINK ") {
         Symlink { file: rest.trim() }
     } else if let Some(rest) = line.strip_prefix("EMIT_TEF ") {

@@ -40,23 +40,10 @@ struct TraceFile {
 
 struct State {
     active: AtomicBool,
+    die_when_idle: AtomicBool,
     socket_path: PathBuf,
     dir: PathBuf,
     files: Mutex<HashMap<TraceID, Arc<TraceFile>>>,
-}
-
-impl State {
-    fn close_all_force(&self) {
-        let mut files = self.files.lock().unwrap();
-        for (_, f) in files.drain() {
-            if let Err(err) = {
-                let mut out = f.out.lock().unwrap();
-                out.flush()
-            } {
-                log::error!("Error while flushing {:?}: {:?}", f.path, err)
-            }
-        }
-    }
 }
 
 impl Drop for State {
@@ -106,6 +93,31 @@ impl State {
         };
         Ok(trf)
     }
+
+    fn close_all_force(&self) {
+        let mut files = self.files.lock().unwrap();
+        for (_, f) in files.drain() {
+            if let Err(err) = {
+                let mut out = f.out.lock().unwrap();
+                out.flush()
+            } {
+                log::error!("Error while flushing {:?}: {:?}", f.path, err)
+            }
+        }
+    }
+
+    fn kill(&self) {
+        // try to exit gracefully
+        self.active.store(false, atomic::Ordering::SeqCst);
+        self.close_all_force();
+
+        // if we don't exit in 10s, die less cleanly
+        thread::spawn(|| {
+            thread::sleep(Duration::from_secs(10));
+            log::warn!("timeout, dying the hard way");
+            std::process::exit(1);
+        });
+    }
 }
 
 impl TraceFile {
@@ -151,20 +163,12 @@ fn handle_client(st: Arc<State>, mut client: impl BufRead) -> Result<()> {
         match msg {
             msg::Msg::Empty => (),
             msg::Msg::Die => {
-                // exit gracefully
                 log::info!("client asked us to quit");
-                st.active.store(false, atomic::Ordering::SeqCst);
-
-                st.close_all_force();
-
-                // if we don't exit in 10s, die less cleanly
-                thread::spawn(|| {
-                    thread::sleep(Duration::from_secs(10));
-                    log::warn!("timeout, dying the hard way");
-                    std::process::exit(1);
-                });
-
+                st.kill();
                 break;
+            }
+            msg::Msg::DieWhenIdle => {
+                st.die_when_idle.store(true, atomic::Ordering::SeqCst);
             }
             msg::Msg::Open { trace_id } => {
                 log::debug!("Opening trace file for trace_id={trace_id:?}");
@@ -234,11 +238,13 @@ fn cleaner_thread(st: Arc<State>) {
         // collect copies of all files
         let mut files = vec![];
 
+        // collect alive files in `files`, cleanup the others
         {
             let mut dead_files = vec![];
 
             let mut tbl = st.files.lock().unwrap();
             for (_, file) in tbl.iter() {
+                dbg!(Arc::strong_count(&file));
                 if Arc::strong_count(&file) == 1 {
                     // only copy of `f`, no client is currently using it
                     dead_files.push(file.clone());
@@ -262,11 +268,13 @@ fn cleaner_thread(st: Arc<State>) {
             }
         }
 
-        for f in files {
-            if Arc::strong_count(&f) <= 2 {
-                st.files.lock().unwrap().remove(&f.trace_id);
-            }
+        // no active files,
+        if files.is_empty() && st.die_when_idle.load(atomic::Ordering::SeqCst) {
+            log::info!("No client and die_when_idle=true, exiting");
+            st.kill();
+        }
 
+        for f in files {
             if let Err(err) = {
                 // flush f
                 let mut out = f.out.lock().unwrap();
@@ -316,6 +324,7 @@ pub fn run(cli: cli::Serve) -> Result<()> {
     // shared state
     let st = Arc::new(State {
         active: AtomicBool::new(true),
+        die_when_idle: AtomicBool::new(false),
         socket_path: socket_path.clone(),
         dir,
         files: Mutex::new(HashMap::new()),
