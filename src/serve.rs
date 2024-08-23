@@ -244,7 +244,6 @@ fn cleaner_thread(st: Arc<State>) {
 
             let mut tbl = st.files.lock().unwrap();
             for (_, file) in tbl.iter() {
-                dbg!(Arc::strong_count(&file));
                 if Arc::strong_count(&file) == 1 {
                     // only copy of `f`, no client is currently using it
                     dead_files.push(file.clone());
