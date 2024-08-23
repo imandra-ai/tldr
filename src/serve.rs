@@ -124,6 +124,7 @@ fn handle_client(st: Arc<State>, mut client: impl BufRead) -> Result<()> {
 
         log::debug!("got msg {:?}", &msg);
         match msg {
+            msg::Msg::Empty => (),
             msg::Msg::Open { trace_id } => {
                 log::debug!("Opening trace file for trace_id={trace_id:?}");
                 trace_file = Some(st.get_trace_file(trace_id)?);
@@ -165,7 +166,7 @@ fn handle_client(st: Arc<State>, mut client: impl BufRead) -> Result<()> {
                 });
             }
             msg::Msg::ParseError { msg } => {
-                log::error!("Invalid message: {}", msg);
+                log::error!("Invalid message: {} in line {:?}", msg, line);
                 n_errors += 1;
             }
         }

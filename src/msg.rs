@@ -1,6 +1,7 @@
 /// Message from clients
 #[derive(Clone, Debug)]
 pub enum Msg<'a> {
+    Empty,
     Open {
         trace_id: &'a str,
     },
@@ -29,7 +30,9 @@ pub fn decode_line<'a>(line: &'a str) -> Msg<'a> {
     use Msg::*;
 
     let line = line.trim();
-    if let Some(rest) = line.strip_prefix("OPEN ") {
+    if line.is_empty() {
+        Empty
+    } else if let Some(rest) = line.strip_prefix("OPEN ") {
         Open {
             trace_id: rest.trim(),
         }
