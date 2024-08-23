@@ -18,6 +18,7 @@ use std::{
 
 use crate::{cli, msg, utils};
 use anyhow::{Context, Result};
+use daemonize::Daemonize;
 
 /// A trace ID, used to coordinate logs/traces from multiple processes.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -244,6 +245,10 @@ fn cleaner_thread(st: Arc<State>) {
 }
 
 pub fn run(cli: cli::Serve) -> Result<()> {
+    if cli.daemonize {
+        Daemonize::new().start().context("daemonizing")?;
+    }
+
     let dir: PathBuf = match cli.dir {
         None => {
             let xdg = xdg::BaseDirectories::with_prefix(utils::XDG_PREFIX)?;
