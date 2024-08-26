@@ -6,6 +6,13 @@ pub struct List {
 }
 
 #[derive(Debug, clap::Parser)]
+pub struct Dir {
+    /// Storage directory
+    #[arg(short = 'd', long = "dir")]
+    pub dir: Option<String>,
+}
+
+#[derive(Debug, clap::Parser)]
 pub struct Serve {
     /// Path to the unix socket to serve
     #[arg(long = "socket")]
@@ -36,10 +43,10 @@ pub struct GetTEF {
 pub enum Command {
     /// List log files
     List(List),
-
     /// Serve as a daemon
     Serve(Serve),
-
     /// get a file as a TEF file
     GetTEF(GetTEF),
+    /// Show directory
+    Dir(Dir),
 }

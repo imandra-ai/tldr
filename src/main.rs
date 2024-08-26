@@ -3,6 +3,7 @@ use clap::Parser;
 use env_logger::Env;
 
 mod cli;
+mod dir;
 mod get_tef;
 mod list;
 mod msg;
@@ -17,6 +18,7 @@ fn main() -> Result<()> {
         cli::Command::List(list) => list::run(list),
         cli::Command::Serve(serve) => serve::run(serve),
         cli::Command::GetTEF(g) => get_tef::run(g),
+        cli::Command::Dir(d) => dir::run(d),
     }?;
 
     Ok(())
