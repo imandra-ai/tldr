@@ -369,5 +369,11 @@ pub fn run(cli: cli::Serve) -> Result<()> {
     }
 
     st.active.store(false, atomic::Ordering::SeqCst);
+
+    // try to remove socket file
+    if let Err(err) = std::fs::remove_file(&socket_path) {
+        log::warn!("Error when deleting socket file at exit: {err:?}")
+    }
+
     Ok(())
 }
