@@ -186,8 +186,6 @@ fn handle_client(st: Arc<State>, mut client: impl BufRead) -> Result<()> {
                 log::debug!("Opening trace file for trace_id={trace_id:?}");
                 trace_file = Some(st.get_trace_file(trace_id)?);
             }
-            msg::Msg::Symlink { file: _ } => todo!(),
-            msg::Msg::Hardlink { file: _ } => todo!(),
             msg::Msg::Add { json } => {
                 let trf = trace_file
                     .as_ref()
