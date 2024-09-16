@@ -39,8 +39,12 @@ pub struct Serve {
 
 #[derive(Debug, clap::Parser)]
 pub struct GetTEF {
+    /// The file to remove. Can be "latest".
     #[arg(index = 1, value_name = "FILE")]
     pub jsonl_file: String,
+    /// Storage directory.
+    #[arg(short = 'd', long = "dir")]
+    pub dir: Option<String>,
     /// Output file (.json file)
     #[arg(short = 'o', long = "out")]
     pub o: Option<String>,
