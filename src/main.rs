@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use env_logger::Env;
 
+mod clear;
 mod cli;
 mod dir;
 mod get_tef;
@@ -19,6 +20,7 @@ fn main() -> Result<()> {
         cli::Command::Serve(serve) => serve::run(serve),
         cli::Command::GetTEF(g) => get_tef::run(g),
         cli::Command::Dir(d) => dir::run(d),
+        cli::Command::Clear(cl) => clear::run(cl),
     }?;
 
     Ok(())

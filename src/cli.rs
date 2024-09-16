@@ -6,6 +6,13 @@ pub struct List {
 }
 
 #[derive(Debug, clap::Parser)]
+pub struct Clear {
+    /// Storage directory
+    #[arg(short = 'd', long = "dir")]
+    pub dir: Option<String>,
+}
+
+#[derive(Debug, clap::Parser)]
 pub struct Dir {
     /// Storage directory
     #[arg(short = 'd', long = "dir")]
@@ -43,6 +50,8 @@ pub struct GetTEF {
 pub enum Command {
     /// List log files
     List(List),
+    /// Delete log files
+    Clear(Clear),
     /// Serve as a daemon
     Serve(Serve),
     /// get a file as a TEF file
