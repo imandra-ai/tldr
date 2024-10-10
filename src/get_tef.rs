@@ -30,7 +30,6 @@ fn find_latest_file(d: Option<impl AsRef<str>>) -> Result<String> {
 }
 
 pub fn run(cli: cli::GetTEF) -> Result<()> {
-    dbg!(&cli);
     let mut file = cli.jsonl_file;
 
     if fs::exists(&file).ok() != Some(true) {
